@@ -16,7 +16,7 @@ app = FastAPI(
 # Cấu hình CORS cho phép Frontend gọi API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://rag-chatbot-backend-new.vercel.app"],  # Thay bằng domain cụ thể khi production
+    allow_origins=["https://rag-chatbot-backend-fawn.vercel.app"],  # Thay bằng domain cụ thể khi production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
