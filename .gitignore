@@ -1,0 +1,24 @@
+# API Keys và secrets — TUYỆT ĐỐI KHÔNG COMMIT
+.env
+*.env
+secrets.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (không cần đẩy lên Git)
+data/*.pdf
+data/*.txt
