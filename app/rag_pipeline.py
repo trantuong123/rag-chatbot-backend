@@ -43,14 +43,19 @@ def search_vector_db(query_embedding: list[float], top_k: int = 5) -> list[dict]
     return results
 
 def generate_answer(query: str, context_chunks: list[dict]) -> str:
-    """Gọi Gemini để tạo câu trả lời dựa trên context, có cơ chế retry."""
+    """
+    Gọi Gemini để tạo câu trả lời dựa trên context.
+    Có cơ chế retry khi gặp lỗi 503 (quá tải) và fallback model.
+    """
+    import time
+    
     context_parts = []
     for i, chunk in enumerate(context_chunks):
         source_info = f"[Nguồn: {chunk['source']}]" if chunk['source'] else ""
         context_parts.append(f"--- Đoạn {i+1} {source_info} ---\n{chunk['text']}")
-
+    
     context = "\n\n".join(context_parts)
-
+    
     prompt = f"""Bạn là một trợ lý ảo chuyên về quy chế đào tạo của trường đại học.
 Hãy trả lời câu hỏi của người dùng một cách chính xác, CHỈ dựa trên thông tin được cung cấp trong phần NGỮ CẢNH.
 TUYỆT ĐỐI KHÔNG bịa đặt thông tin không có trong ngữ cảnh.
@@ -65,25 +70,45 @@ CÂU HỎI: {query}
 
 TRẢ LỜI:"""
 
-    # Cấu hình retry
+    # Danh sách model dự phòng (thử lần lượt từ trên xuống)
+    models_to_try = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+    ]
+    
     max_retries = 3
-    base_delay = 2  # giây
+    base_delay = 2
 
-    for attempt in range(max_retries):
-        try:
-            response = genai_client.models.generate_content(
-                model="gemini-3.5-flash-lite",
-                contents=prompt,
-            )
-            return response.text
-        except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
-            if attempt == max_retries - 1:
-                raise  # Nếu đã thử hết số lần, ném lỗi ra ngoài
-            wait_time = base_delay * (2 ** attempt)  # 2s, 4s, 8s
-            print(f"Lỗi tạm thời ({type(e).__name__}), thử lại sau {wait_time} giây...")
-            time.sleep(wait_time)
-
-    return "Xin lỗi, hiện tại tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại sau."
+    last_error = None
+    
+    for model_name in models_to_try:
+        for attempt in range(max_retries):
+            try:
+                response = genai_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                return response.text
+            except Exception as e:
+                error_str = str(e)
+                last_error = e
+                
+                if "503" in error_str or "429" in error_str or "UNAVAILABLE" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                    if attempt < max_retries - 1:
+                        wait_time = base_delay * (2 ** attempt)
+                        print(f"Model {model_name} qua tai, thu lai sau {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"Model {model_name} that bai, chuyen model du phong...")
+                        break
+                else:
+                    print(f"Model {model_name} loi: {error_str[:100]}. Chuyen model du phong...")
+                    break
+    
+    return f"Xin lỗi, hiện tại hệ thống AI đang quá tải. Vui lòng thử lại sau 1-2 phút."
 
 def process_query(query: str) -> dict:
     """Luồng xử lý chính: câu hỏi → embedding → search → generate."""
