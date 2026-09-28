@@ -108,14 +108,10 @@ TRẢ LỜI:"""
                     print(f"Model {model_name} loi: {error_str[:100]}. Chuyen model du phong...")
                     break
     
-    return f"Xin lỗi, hiện tại hệ thống AI đang quá tải. Vui lòng thử lại sau 1-2 phút."
+    raise Exception("AI_OVERLOADED")
 
 def process_query(query: str) -> dict:
-    """Luồng xử lý chính: câu hỏi → embedding → search → generate."""
-    # 1. Tạo embedding cho câu hỏi (dùng RETRIEVAL_QUERY)
     query_embedding = get_embedding(query, task_type="RETRIEVAL_QUERY")
-    
-    # 2. Tìm kiếm trong Vector DB
     search_results = search_vector_db(query_embedding, top_k=5)
     
     if not search_results:
@@ -124,10 +120,15 @@ def process_query(query: str) -> dict:
             "sources": [],
         }
     
-    # 3. Tạo câu trả lời với context
-    answer = generate_answer(query, search_results)
-    
-    return {
-        "answer": answer,
-        "sources": search_results,
-    }
+    try:
+        answer = generate_answer(query, search_results)
+        return {
+            "answer": answer,
+            "sources": search_results,
+        }
+    except Exception as e:
+        # Khi AI quá tải hoặc lỗi → KHÔNG trả về sources
+        return {
+            "answer": "Xin lỗi, hiện tại hệ thống AI đang quá tải. Vui lòng thử lại sau 1-2 phút.",
+            "sources": [],   # ← TRẢ VỀ MẢNG RỖNG
+        }
